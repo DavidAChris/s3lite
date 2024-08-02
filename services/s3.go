@@ -2,11 +2,13 @@ package services
 
 import (
 	"context"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"io"
 	"log"
 	"os"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 type S3Serivce struct {
@@ -61,4 +63,22 @@ func NewS3Service(config aws.Config) *S3Serivce {
 	return &S3Serivce{
 		s3.NewFromConfig(config),
 	}
+}
+
+func AwsConfig() (*S3Serivce, *S3Details) {
+	config, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("us-east-1"))
+	if err != nil {
+		log.Println("ERROR: Config Failure")
+	}
+	s3Svc := NewS3Service(config)
+	bucketName := os.Getenv("BUCKET_NAME")
+	if bucketName == "" {
+		log.Fatal("ERROR: BUCKET_NAME ENV REQUIRED")
+	}
+	details := &S3Details{
+		BucketName: bucketName,
+		Key:        "tmp/todos.db",
+		FileName:   "/tmp/todos.db",
+	}
+	return s3Svc, details
 }

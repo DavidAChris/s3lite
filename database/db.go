@@ -1,14 +1,14 @@
 package database
 
 import (
-	"database/sql"
 	"github.com/DavidAChris/s3lite/services"
 	_ "github.com/glebarez/go-sqlite"
+	"github.com/jmoiron/sqlx"
 	"sync"
 )
 
 var (
-	s3db *sql.DB
+	s3db *sqlx.DB
 	mu   sync.RWMutex
 )
 
@@ -19,7 +19,7 @@ func InitDb(s3Scv *services.S3Serivce, s3Details *services.S3Details) error {
 	mu.Lock()
 	defer mu.Unlock()
 	s3Scv.DownloadFile(s3Details.BucketName, s3Details.Key, s3Details.FileName)
-	newDb, err := sql.Open("sqlite", s3Details.FileName)
+	newDb, err := sqlx.Open("sqlite", s3Details.FileName)
 	if err != nil {
 		return err
 	}
@@ -27,28 +27,19 @@ func InitDb(s3Scv *services.S3Serivce, s3Details *services.S3Details) error {
 	return nil
 }
 
-func Write(query string, s3Scv *services.S3Serivce, s3Details *services.S3Details) error {
+func Write(fn func(db *sqlx.DB) error) {
 	mu.Lock()
 	defer mu.Unlock()
-	_, err := s3db.Exec(query)
+	err := fn(s3db)
 	if err != nil {
-		return err
+		return
 	}
+	s3Scv, s3Details := services.AwsConfig()
 	s3Scv.UploadFile(s3Details.BucketName, s3Details.Key, s3Details.FileName)
-	return err
 }
 
-func Query(query string) (*sql.Rows, error) {
+func Read(fn func(db *sqlx.DB)) {
 	mu.RLock()
 	defer mu.RUnlock()
-
-	return s3db.Query(query)
-}
-
-func QueryRowScan(query string, dest ...any) error {
-	mu.RLock()
-	defer mu.Unlock()
-	row := s3db.QueryRow(query)
-
-	return row.Scan(dest)
+	fn(s3db)
 }
